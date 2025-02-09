@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Quiz Game</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #questionContainer {
+            margin-top: 20px;
+        }
+        .choice-label {
+            display: block;
+            margin: 10px 0;
+        }
+        #message {
+            text-align: center;
+            color: #333;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-Time Quiz Game</h1>
+        <div id="login">
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button id="loginButton">Login</button>
+        </div>
+        <div id="game" style="display: none;">
+            <button id="startGame">Start Game</button>
+            <div id="questionContainer" style="display: none;">
+                <p id="questionText"></p>
+                <div id="choices"></div>
+                <button id="submitAnswer" style="display: none;">Submit Answer</button>
+            </div>
+            <div id="result" style="display: none;"></div>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        let token = null;
+        let userId = null;
+        let socket = null;
+        let gameId = null;
+        let questions = [];
+        let currentQuestionIndex = 0;
+
+        function showMessage(msg) {
+            document.getElementById('message').innerText = msg;
+        }
+
+        document.getElementById('loginButton').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.token) {
+                    token = data.token;
+                    userId = data.userId;
+                    document.getElementById('login').style.display = 'none';
+                    document.getElementById('game').style.display = 'block';
+                    showMessage('Logged in successfully');
+                } else {
+                    showMessage('Login failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error during login:', error);
+                showMessage('Login failed');
+            });
+        });
+
+        document.getElementById('startGame').addEventListener('click', () => {
+            fetch('/api/game/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ userId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message === 'Waiting for another player to join') {
+                    showMessage(data.message);
+                }
+                initializeSocket(); // Initialize socket for both players
+            })
+            .catch(error => {
+                console.error('Error starting game:', error);
+                showMessage('Failed to start game');
+            });
+        });
+
+        function initializeSocket() {
+            socket = io();
+            socket.emit('join', { userId });
+
+            socket.on('game:init', ({ gameId: newGameId, questions: newQuestions }) => {
+                gameId = newGameId;
+                questions = newQuestions;
+                startGame();
+            });
+
+            socket.on('question:next', ({ questionIndex }) => {
+                currentQuestionIndex = questionIndex;
+                showQuestion(currentQuestionIndex);
+            });
+
+            socket.on('game:end', ({ winner }) => {
+                document.getElementById('questionContainer').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerText = `Game over! Winner: ${winner}`;
+            });
+        }
+
+        window.addEventListener('beforeunload', () => {
+            fetch('/api/game/close-sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        });
+
+        function startGame() {
+            document.getElementById('startGame').style.display = 'none';
+            document.getElementById('questionContainer').style.display = 'block';
+            showQuestion(currentQuestionIndex);
+        }
+
+        function showQuestion(index) {
+            const question = questions[index];
+            document.getElementById('questionText').innerText = question.questionText;
+            const choicesContainer = document.getElementById('choices');
+            choicesContainer.innerHTML = '';
+            question.choices.forEach(choice => {
+                const label = document.createElement('label');
+                label.className = 'choice-label';
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = 'choice';
+                input.value = choice;
+                label.appendChild(input);
+                label.appendChild(document.createTextNode(choice));
+                choicesContainer.appendChild(label);
+            });
+            document.getElementById('submitAnswer').style.display = 'block';
+        }
+
+        document.getElementById('submitAnswer').addEventListener('click', () => {
+            const selectedChoice = document.querySelector('input[name="choice"]:checked');
+            if (!selectedChoice) {
+                showMessage('Please select an answer');
+                return;
+            }
+            fetch('/api/game/submit-answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ gameId, userId, questionIndex: currentQuestionIndex, answer: selectedChoice.value })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('submitAnswer').style.display = 'none';
+                if (currentQuestionIndex < questions.length - 1) {
+                    currentQuestionIndex++;
+                    showQuestion(currentQuestionIndex);
+                }
+            })
+            .catch(error => {
+                showMessage('Failed to submit answer');
+            });
+        });
+    </script>
+</body>
+</html>

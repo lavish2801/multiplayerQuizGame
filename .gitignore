@@ -1,0 +1,11 @@
+# Node.js
+node_modules/
+package-lock.json
+
+
+# dotenv environment variables file
+.env
+
+# VS Code directories
+.vscode/
+.
