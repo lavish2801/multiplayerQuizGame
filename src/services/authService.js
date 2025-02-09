@@ -14,25 +14,29 @@ const authService = {
     await newUser.save();
   },
 
-  loginUser: async (email, password) => {
-      if (!password) {
-         return res.status(400).json({ message: "Password is required" });
-       }
-       const user = await User.findOne({ username });
-       if (!user) {
-         return res.status(404).json({ message: "User not found" });
-       }
-   
-       const isMatch = await bcrypt.compare(password, user.password);
-       if (!isMatch) {
-         return res.status(401).json({ message: "Invalid credentials" });
-       }
-   
-       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-       const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
-       const newToken = new Token({ userId: user._id, token, expiresAt });
-       await newToken.save();
-       return user;
+  loginUser: async (username, password) => {
+    if (!username) {
+      return res.status(400).json({ message: "Username is required" });
+    }
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+    const user = await User.findOne({ username });
+    console.log(JSON.stringify(user));
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      throw new Error("Invalid credentials");
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+    const newToken = new Token({ userId: user._id, token, expiresAt });
+    await newToken.save();
+    return { user, token };
   },
 };
 

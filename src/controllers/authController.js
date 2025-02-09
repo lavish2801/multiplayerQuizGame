@@ -13,10 +13,13 @@ const authServiceController = {
   loginUser: async (req, res) => {
     const { username, password } = req.body;
     try {
-      const user = await authService.loginUser(username, password);
-      res.status(200).json({ token, userId: user._id, username: user.username });
+      const result = await authService.loginUser(username, password);
+      res.status(200).json({
+        token: result.token, userId: result.user._id,
+        username: result.user.username
+      });
     } catch (error) {
-      res.status(500).json({ message: "Error logging in", error });
+      res.status(500).json({ message: "Error logging in", error: error.message });
     }
   },
 }
