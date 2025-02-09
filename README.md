@@ -20,12 +20,15 @@ A real-time quiz game built with Node.js, MongoDB, and WebSockets. This applicat
 - WebSocket
 - render 
 
-# Live Preview
+# Live Demo
 
 Deployed my code on Render. Used mongoDb cloud for ease and high availability.
 
 Base Url:`https://multiplayerquizgame.onrender.com`
-This will help to fetch the live preview of user login and play game. 
+This will help to fetch the live preview of user login and play game.
+
+# Postman Collection
+A collection of apis shared in the same repository with file name `Real_Time_Multiplayer_game.postman_collection.json`
 
 ## Installation
 
@@ -85,5 +88,3 @@ This will help to fetch the live preview of user login and play game.
 - **Username**: test2
 - **Password**: password
 
-
-# How to Start
